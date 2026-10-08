@@ -9,6 +9,64 @@ const TABS = [
   { id: 'Tungro', label: 'Tungro' },
 ];
 
+/**
+ * Robust image fetcher with 4 fallback tiers:
+ * 1. Same-origin relative path (via Vite dev proxy or production reverse proxy)
+ * 2. Full configured url
+ * 3. Direct 127.0.0.1 backend address
+ * 4. In-memory Image -> Canvas blob extraction
+ */
+async function fetchSampleBlob(item) {
+  const candidates = [
+    `/api/samples/${item.className}/${item.filename}`,
+    item.url,
+    `http://127.0.0.1:8000/api/samples/${item.className}/${item.filename}`,
+    `http://localhost:8000/api/samples/${item.className}/${item.filename}`,
+  ];
+
+  let lastErr = null;
+  for (const targetUrl of candidates) {
+    if (!targetUrl) continue;
+    try {
+      const res = await fetch(targetUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const ext = item.filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        return new File([blob], item.filename, { type: ext });
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  // Fallback 4: Canvas blob conversion
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 224;
+        canvas.height = img.naturalHeight || 224;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const mime = item.filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], item.filename, { type: mime }));
+          } else {
+            reject(lastErr || new Error('Failed to generate canvas blob'));
+          }
+        }, mime, 0.95);
+      } catch (canvasErr) {
+        reject(lastErr || canvasErr);
+      }
+    };
+    img.onerror = () => reject(lastErr || new Error(`Could not load image: ${item.filename}`));
+    img.src = item.url;
+  });
+}
+
 export default function TestGallery({
   onSelectSample,
   selectedFilename,
@@ -19,6 +77,7 @@ export default function TestGallery({
   const [activeTab, setActiveTab] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const [loadingSample, setLoadingSample] = useState(null);
   const scrollContainerRef = useRef(null);
 
@@ -27,7 +86,13 @@ export default function TestGallery({
     const fetchSamples = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE_URL}/api/samples`);
+        // Try relative endpoint first, then configured base URL
+        let res;
+        try {
+          res = await fetch('/api/samples');
+        } catch {
+          res = await fetch(`${API_BASE_URL || 'http://127.0.0.1:8000'}/api/samples`);
+        }
         if (!res.ok) throw new Error('Failed to retrieve test samples from server.');
         const data = await res.json();
         if (mounted) {
@@ -58,7 +123,7 @@ export default function TestGallery({
             className: clsObj.name,
             displayName: DISEASE_INFO[clsObj.name]?.displayName || clsObj.name,
             filename,
-            url: `${API_BASE_URL}/api/samples/${clsObj.name}/${filename}`,
+            url: `/api/samples/${clsObj.name}/${filename}`,
           });
         });
       }
@@ -74,13 +139,10 @@ export default function TestGallery({
 
   const handleChooseSample = async (item, autoAnalyze = false) => {
     if (isAnalyzing || loadingSample) return;
+    setActionError(null);
     try {
       setLoadingSample(item.filename);
-      const res = await fetch(item.url);
-      if (!res.ok) throw new Error(`Could not load test sample ${item.filename}`);
-      const blob = await res.blob();
-      const ext = item.filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-      const file = new File([blob], item.filename, { type: ext });
+      const file = await fetchSampleBlob(item);
 
       onSelectSample(file, 'VERIFIED TEST SAMPLE', item.className, autoAnalyze);
 
@@ -91,6 +153,7 @@ export default function TestGallery({
       }
     } catch (err) {
       console.error('Error loading sample:', err);
+      setActionError(`Could not load sample "${item.filename}": ${err.message}`);
     } finally {
       setLoadingSample(null);
     }
@@ -191,6 +254,17 @@ export default function TestGallery({
       </div>
 
       <div className="lv-gallery__body">
+        {actionError && (
+          <div className="lv-error" style={{ margin: '14px 28px' }} role="alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{actionError}</span>
+          </div>
+        )}
+
         {loading ? (
           <div className="lv-gallery__loading">Loading verified samples from dataset…</div>
         ) : error ? (

@@ -171,9 +171,25 @@ export default function App() {
     const nextItem = candidateList[nextIdx];
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/samples/${nextItem.className}/${nextItem.filename}`);
-      if (!res.ok) throw new Error('Could not fetch next sample');
-      const blob = await res.blob();
+      const candidates = [
+        `/api/samples/${nextItem.className}/${nextItem.filename}`,
+        `http://127.0.0.1:8000/api/samples/${nextItem.className}/${nextItem.filename}`,
+        `http://localhost:8000/api/samples/${nextItem.className}/${nextItem.filename}`,
+      ];
+      let blob = null;
+      for (const u of candidates) {
+        try {
+          const r = await fetch(u);
+          if (r.ok) {
+            blob = await r.blob();
+            break;
+          }
+        } catch {
+          // continue to next candidate
+        }
+      }
+      if (!blob) throw new Error('Could not fetch next sample from any endpoint candidate');
+
       const ext = nextItem.filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
       const file = new File([blob], nextItem.filename, { type: ext });
 
