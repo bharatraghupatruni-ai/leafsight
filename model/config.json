@@ -1,0 +1,23 @@
+{
+    "architecture": "ViT-B/16 -> GRU -> Classifier",
+    "vit_model": "google/vit-base-patch16-224-in21k",
+    "num_classes": 4,
+    "classes": [
+        "Bacterialblight",
+        "Blast",
+        "Brownspot",
+        "Tungro"
+    ],
+    "image_size": 224,
+    "batch_size": 4,
+    "epochs": 15,
+    "learning_rate": 0.0001,
+    "gru_hidden_size": 128,
+    "gru_layers": 1,
+    "dropout": 0.3,
+    "optimizer": "AdamW",
+    "loss": "CrossEntropyLoss",
+    "vit_frozen": true,
+    "best_epoch": 12,
+    "best_validation_accuracy": 0.9874651810584958
+}

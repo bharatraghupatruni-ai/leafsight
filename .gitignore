@@ -1,0 +1,64 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.env.*
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node & Frontend artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.vite/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Large ML Weights & Checkpoints (Exceeds GitHub 100MB file limit)
+# Note: Checkpoints are generated locally via scripts/train.py and scripts/finetune.py
+*.pth
+*.pt
+*.bin
+*.onnx
+model/*.pth
+model/*.pt
+
+# Datasets (Large multi-gigabyte image folders)
+# Note: Prepared and processed via scripts/prepare_dataset.py
+data/
+data/raw/
+data/processed/
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
