@@ -1,78 +1,93 @@
 import React, { useState } from 'react';
-import { Eye, Layers, Split, Image as ImageIcon, Info } from 'lucide-react';
 
-export default function AttentionHeatmap({ originalUrl, heatmapBase64, description }) {
-  const [viewMode, setViewMode] = useState('side-by-side'); // 'side-by-side' | 'heatmap' | 'original'
+const MODES = [
+  { id: 'overlay',  label: 'OVERLAY' },
+  { id: 'heatmap',  label: 'ATTENTION MAP' },
+  { id: 'original', label: 'ORIGINAL' },
+];
 
-  if (!heatmapBase64 && !originalUrl) return null;
+export default function AttentionHeatmap({
+  originalUrl,
+  heatmapBase64,
+  pureHeatmapBase64,
+  description,
+}) {
+  const [activeMode, setActiveMode] = useState('overlay');
+
+  if (!heatmapBase64) return null;
+
+  const overlaySrc = heatmapBase64.startsWith('data:')
+    ? heatmapBase64
+    : `data:image/png;base64,${heatmapBase64}`;
+
+  const pureHeatmapSrc = pureHeatmapBase64
+    ? (pureHeatmapBase64.startsWith('data:') ? pureHeatmapBase64 : `data:image/png;base64,${pureHeatmapBase64}`)
+    : overlaySrc;
+
+  let currentSrc = overlaySrc;
+  let currentLabel = 'ATTENTION OVERLAY';
+  if (activeMode === 'original') {
+    currentSrc = originalUrl;
+    currentLabel = 'ORIGINAL INPUT';
+  } else if (activeMode === 'heatmap') {
+    currentSrc = pureHeatmapSrc;
+    currentLabel = 'ATTENTION HEATMAP';
+  }
 
   return (
-    <div className="card attention-card">
-      <div className="card-header">
-        <div className="card-title-group">
-          <Eye size={20} color="var(--primary-800)" />
-          <div>
-            <h3 className="card-title">Model Attention</h3>
-            <p className="card-subtitle">ViT Layer Attention Rollout Map</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="attention-desc-box">
-        <p>
+    <section className="lv-attn" id="attention-viewer" aria-label="ViT Attention Visualization">
+      <div className="lv-attn__head">
+        <h3 className="lv-attn__title">WHAT THE MODEL ATTENDS TO</h3>
+        <p className="lv-attn__desc">
           {description ||
-            'This visualization highlights image regions that received stronger attention during the prediction.'}
+            'Attention visualization showing image regions that received stronger attention during the ViT prediction.'}
         </p>
       </div>
 
-      <div className="visual-tabs">
-        <button
-          type="button"
-          className={`visual-tab-btn ${viewMode === 'side-by-side' ? 'active' : ''}`}
-          onClick={() => setViewMode('side-by-side')}
-        >
-          <Split size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-          Side-by-Side
-        </button>
-        <button
-          type="button"
-          className={`visual-tab-btn ${viewMode === 'heatmap' ? 'active' : ''}`}
-          onClick={() => setViewMode('heatmap')}
-        >
-          <Layers size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-          Attention Map
-        </button>
-        <button
-          type="button"
-          className={`visual-tab-btn ${viewMode === 'original' ? 'active' : ''}`}
-          onClick={() => setViewMode('original')}
-        >
-          <ImageIcon size={14} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-          Original Leaf
-        </button>
+      {/* Segmented controls */}
+      <div className="lv-attn__tabs" role="tablist" aria-label="Attention view modes">
+        {MODES.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeMode === id}
+            className={`lv-attn__tab ${activeMode === id ? 'active' : ''}`}
+            onClick={() => setActiveMode(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className={`visual-display-grid ${viewMode === 'side-by-side' ? 'side-by-side' : ''}`}>
-        {(viewMode === 'side-by-side' || viewMode === 'original') && originalUrl && (
-          <div className="visual-frame">
-            <div className="visual-frame-header">
-              <span>Original Leaf Image</span>
-              <span>224×224</span>
-            </div>
-            <img src={originalUrl} alt="Original Rice Leaf" className="visual-frame-img" />
+      {/* Image display */}
+      <div className="lv-attn__view">
+        <div className="lv-attn__img-box">
+          <img
+            key={activeMode}
+            className="lv-attn__img"
+            src={currentSrc}
+            alt={`${currentLabel} of rice leaf`}
+          />
+          <span className="lv-attn__badge tl" aria-hidden="true">{currentLabel}</span>
+          <span className="lv-attn__badge br" aria-hidden="true">
+            ViT-B/16 · 224 × 224 · 14 × 14 PATCH GRID
+          </span>
+        </div>
+
+        {/* Colormap Legend */}
+        {activeMode !== 'original' && (
+          <div className="lv-attn__legend" aria-label="Heatmap salience colormap">
+            <span style={{ fontWeight: 600 }}>LOW SALIENCE</span>
+            <div className="lv-attn__legend-bar" aria-hidden="true" />
+            <span style={{ fontWeight: 600 }}>HIGH SALIENCE</span>
           </div>
         )}
 
-        {(viewMode === 'side-by-side' || viewMode === 'heatmap') && heatmapBase64 && (
-          <div className="visual-frame">
-            <div className="visual-frame-header">
-              <span>Attention Visualization (Rollout Overlay)</span>
-              <span>Jet Colormap</span>
-            </div>
-            <img src={heatmapBase64} alt="Attention Rollout Overlay" className="visual-frame-img" />
-          </div>
-        )}
+        <p style={{ marginTop: 10, fontSize: 11, color: 'var(--c-text-3)', lineHeight: 1.5 }}>
+          Visual representation of ViT self-attention rollout across 12 transformer layers (196 patch tokens). Indicates relative feature salience, not proof of biological causation.
+        </p>
       </div>
-    </div>
+    </section>
   );
 }

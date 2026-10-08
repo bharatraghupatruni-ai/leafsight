@@ -40,10 +40,10 @@ def compute_attention_rollout(attentions: tuple) -> torch.Tensor:
 def generate_heatmap_overlay(
     cls_attention: torch.Tensor,
     original_pil: Image.Image
-) -> str:
+) -> tuple[str, str]:
     """
     Transforms 1D patch attention into a 2D interpolated heatmap and blends with the input image.
-    Returns a data URL: 'data:image/png;base64,...'
+    Returns: (blended_data_url, pure_heatmap_data_url)
     """
     # 196 patches corresponds to 14x14 grid for 224x224 input with 16x16 patch size
     attention_2d = cls_attention.reshape(14, 14).detach().cpu().numpy()
@@ -70,18 +70,23 @@ def generate_heatmap_overlay(
     cmap = plt.get_cmap("jet")
     colored_heatmap = cmap(upsampled_att)[:, :, :3]
     
+    # Pure attention map
+    pure_uint8 = (np.clip(colored_heatmap, 0.0, 1.0) * 255).astype(np.uint8)
+    pure_pil = Image.fromarray(pure_uint8)
+    buf_pure = io.BytesIO()
+    pure_pil.save(buf_pure, format="PNG")
+    pure_b64 = f"data:image/png;base64,{base64.b64encode(buf_pure.getvalue()).decode('utf-8')}"
+    
     # Blend: 55% original image + 45% heatmap
     blended = 0.55 * img_np + 0.45 * colored_heatmap
     blended = np.clip(blended, 0.0, 1.0)
     blended_uint8 = (blended * 255).astype(np.uint8)
-    
-    # Export to base64 PNG
     out_pil = Image.fromarray(blended_uint8)
     buffer = io.BytesIO()
     out_pil.save(buffer, format="PNG")
-    base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    blended_b64 = f"data:image/png;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
     
-    return f"data:image/png;base64,{base64_str}"
+    return blended_b64, pure_b64
 
 
 class ExplainabilityService:
@@ -112,12 +117,13 @@ class ExplainabilityService:
             raise RuntimeError("ViT attentions were not returned. Ensure attn_implementation='eager'.")
             
         cls_attention = compute_attention_rollout(attentions)
-        heatmap_base64 = generate_heatmap_overlay(cls_attention, image)
+        blended_b64, pure_b64 = generate_heatmap_overlay(cls_attention, image)
         
         return {
             "prediction": predicted_class,
             "confidence": round(confidence, 4),
             "probabilities": prob_dict,
-            "heatmap_base64": heatmap_base64,
+            "heatmap_base64": blended_b64,
+            "pure_heatmap_base64": pure_b64,
             "description": "Attention visualization showing image regions that received stronger attention during the ViT prediction."
         }

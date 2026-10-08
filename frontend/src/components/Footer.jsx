@@ -2,13 +2,15 @@ import React from 'react';
 
 export default function Footer() {
   return (
-    <footer className="app-footer">
-      <p>
-        <strong>LEAFSIGHT</strong> — Intelligent Rice Leaf Disease Recognition System • ViT-B/16 + GRU Classifier
-      </p>
-      <p style={{ marginTop: 4, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        Empowering precision agriculture with deep learning attention mechanisms.
-      </p>
+    <footer className="lv-footer" role="contentinfo">
+      <div className="lv-footer__inner">
+        <div className="lv-footer__l">
+          <strong>LEAFSIGHT VISION LAB</strong> — Intelligent Rice Leaf Disease Recognition System · Held-out Test Set Accuracy: 99.86% (720/721 correct) · Macro F1: 99.85%
+        </div>
+        <div className="lv-footer__r">
+          ViT-B/16 (196 Tokens) · GRU Sequence Classifier · PyTorch 2.6
+        </div>
+      </div>
     </footer>
   );
 }

@@ -1,48 +1,34 @@
 import React from 'react';
-import { Award, Layers, Target, CheckCircle2 } from 'lucide-react';
 import { MODEL_BENCHMARKS } from '../config';
+
+const METRICS = [
+  { value: MODEL_BENCHMARKS.accuracy, label: 'TEST ACCURACY', accent: true },
+  { value: MODEL_BENCHMARKS.macroF1, label: 'MACRO F1', accent: false },
+  { value: MODEL_BENCHMARKS.correctPredictions, label: 'CORRECT (720 / 721)', accent: false },
+  { value: '721 SAMPLES', label: 'HELD-OUT TEST SET', accent: false },
+];
 
 export default function BenchmarkBanner() {
   return (
-    <div className="benchmark-banner">
-      <div className="benchmark-title">
-        <Award size={18} />
-        <span>Test-Set Performance</span>
+    <section className="lv-perf" aria-label="Model performance benchmarks">
+      <div className="lv-perf__intro">
+        <p className="lv-perf__title">MODEL PERFORMANCE</p>
+        <p className="lv-perf__arch">{MODEL_BENCHMARKS.architecture}</p>
       </div>
 
-      <div className="benchmark-stats">
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Model Architecture</span>
-          <span className="benchmark-stat-value">{MODEL_BENCHMARKS.architecture}</span>
-        </div>
-
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Test Accuracy</span>
-          <span className="benchmark-stat-value" style={{ color: 'var(--primary-800)' }}>
-            {MODEL_BENCHMARKS.accuracy}
-          </span>
-        </div>
-
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Macro Precision</span>
-          <span className="benchmark-stat-value">{MODEL_BENCHMARKS.macroPrecision}</span>
-        </div>
-
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Macro Recall</span>
-          <span className="benchmark-stat-value">{MODEL_BENCHMARKS.macroRecall}</span>
-        </div>
-
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Macro F1</span>
-          <span className="benchmark-stat-value">{MODEL_BENCHMARKS.macroF1}</span>
-        </div>
-
-        <div className="benchmark-stat-item">
-          <span className="benchmark-stat-label">Correct Predictions</span>
-          <span className="benchmark-stat-value">{MODEL_BENCHMARKS.correctPredictions}</span>
-        </div>
+      <div className="lv-perf__metrics" role="list">
+        {METRICS.map(({ value, label, accent }) => (
+          <div
+            key={label}
+            className="lv-perf__stat"
+            role="listitem"
+            aria-label={`${label}: ${value}`}
+          >
+            <span className={`lv-perf__val ${accent ? 'accent' : ''}`}>{value}</span>
+            <span className="lv-perf__lbl">{label}</span>
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }

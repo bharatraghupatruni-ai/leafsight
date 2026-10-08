@@ -1,44 +1,59 @@
-import React from 'react';
-import { BarChart3 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { DISEASE_INFO } from '../config';
 
+const CLASS_ORDER = ['Bacterialblight', 'Blast', 'Brownspot', 'Tungro'];
+
 export default function ProbabilityBars({ probabilities, predictedClass }) {
+  const [animated, setAnimated] = useState(false);
+
+  useEffect(() => {
+    setAnimated(false);
+    const t = setTimeout(() => setAnimated(true), 100);
+    return () => clearTimeout(t);
+  }, [probabilities]);
+
   if (!probabilities) return null;
 
-  const diseaseKeys = ["Bacterialblight", "Blast", "Brownspot", "Tungro"];
+  // Sorted entries descending by probability
+  const entries = CLASS_ORDER.map((cls) => ({
+    cls,
+    displayName: DISEASE_INFO[cls]?.displayName ?? cls,
+    prob: probabilities[cls] ?? 0,
+    isWinner: cls.toLowerCase() === (predictedClass || '').toLowerCase(),
+  })).sort((a, b) => b.prob - a.prob);
 
   return (
-    <div className="card" style={{ marginTop: '24px' }}>
-      <div className="card-header">
-        <div className="card-title-group">
-          <BarChart3 size={20} color="var(--primary-800)" />
-          <div>
-            <h3 className="card-title">Class Probabilities</h3>
-            <p className="card-subtitle">Distribution across the 4 rice pathology classes</p>
-          </div>
-        </div>
+    <div className="lv-probs" id="probability-bars" aria-label="Class softmax probabilities">
+      <div className="lv-probs__head">
+        <span className="label">SOFTMAX OUTPUT</span>
+        <span className="label" style={{ fontWeight: 400, textTransform: 'none' }}>
+          Calibrated Distribution
+        </span>
       </div>
 
-      <div className="probabilities-list">
-        {diseaseKeys.map((key) => {
-          const prob = probabilities[key] ?? 0;
-          const percent = (prob * 100).toFixed(2);
-          const isWinner = key === predictedClass;
-          const label = DISEASE_INFO[key]?.displayName || key;
-
+      <div className="lv-probs__list" role="list">
+        {entries.map(({ cls, displayName, prob, isWinner }) => {
+          const pct = (prob * 100).toFixed(2);
+          const barW = animated ? prob * 100 : 0;
           return (
-            <div key={key} className="prob-row">
-              <div className="prob-label-row">
-                <span className={`prob-class-name ${isWinner ? 'winner' : ''}`}>
-                  {label} {isWinner && <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary-700)' }}>• Primary Match</span>}
+            <div
+              key={cls}
+              className="lv-prob-row"
+              role="listitem"
+              aria-label={`${displayName}: ${pct}%`}
+            >
+              <div className="lv-prob-row__info">
+                <span className={`lv-prob-row__name ${isWinner ? 'winner' : ''}`}>
+                  {displayName}
                 </span>
-                <span className="prob-value">{percent}%</span>
+                <span className={`lv-prob-row__pct ${isWinner ? 'winner' : ''}`}>
+                  {pct}%
+                </span>
               </div>
-
-              <div className="prob-bar-track">
+              <div className="lv-prob-row__track" role="presentation">
                 <div
-                  className={`prob-bar-fill ${isWinner ? 'winner' : ''}`}
-                  style={{ width: `${Math.max(parseFloat(percent), 0.5)}%` }}
+                  className={`lv-prob-row__fill ${isWinner ? 'winner' : ''}`}
+                  style={{ width: `${barW}%` }}
                 />
               </div>
             </div>
