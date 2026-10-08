@@ -8,6 +8,7 @@ export default function ResultCard({
   groundTruth,
   onReset,
   isAnalyzing,
+  onNextSample,
 }) {
   const [barWidth, setBarWidth] = useState(0);
 
@@ -58,7 +59,7 @@ export default function ResultCard({
           <p className="lv-diag-empty__p">
             {isAnalyzing
               ? 'Evaluating 196 patch tokens across 12 ViT layers and sequence GRU classifier.'
-              : 'Upload a leaf image or select any verified test sample to run disease recognition.'}
+              : 'Upload a leaf image or select any verified test sample from below to benchmark.'}
           </p>
         </div>
       ) : (
@@ -84,24 +85,40 @@ export default function ResultCard({
 
           {/* Verification section: Ground Truth vs Prediction for Verified Samples */}
           {isVerifiedSample && groundTruth && (
-            <div className="lv-verif" aria-label="Ground truth verification">
-              <div className="lv-verif__item">
-                <span className="lv-verif__lbl">SOURCE</span>
-                <span className="lv-verif__val">TEST DATASET</span>
-              </div>
-              <div className="lv-verif__item">
-                <span className="lv-verif__lbl">GROUND TRUTH</span>
-                <span className="lv-verif__val" style={{ color: 'var(--c-accent)' }}>{groundTruth}</span>
-              </div>
-              <div className="lv-verif__item">
-                <span className="lv-verif__lbl">MODEL PREDICTION</span>
-                <span className="lv-verif__val">{result.prediction}</span>
-              </div>
-              <div className="lv-verif__item">
-                <span className="lv-verif__lbl">STATUS</span>
-                <span className={`lv-verif__status ${isMatch ? 'correct' : 'wrong'}`}>
-                  {isMatch ? '✓ CORRECT MATCH' : '▲ MISCLASSIFIED'}
+            <div className="lv-verif-box" aria-label="Ground truth verification console">
+              <div className="lv-verif-box__header">
+                <span className="label" style={{ color: 'var(--c-accent)', fontWeight: 700 }}>
+                  VERIFIED TEST SAMPLE
                 </span>
+                <span className="lv-verif-box__status" style={{ fontSize: 11 }}>
+                  HELD-OUT TEST SPLIT
+                </span>
+              </div>
+              <div className="lv-verif-box__grid">
+                <div className="lv-verif-box__item">
+                  <span className="lv-verif-box__lbl">GROUND TRUTH</span>
+                  <span className="lv-verif-box__val" style={{ color: 'var(--c-accent)' }}>
+                    {groundTruth}
+                  </span>
+                </div>
+                <div className="lv-verif-box__item">
+                  <span className="lv-verif-box__lbl">MODEL PREDICTION</span>
+                  <span className="lv-verif-box__val">
+                    {result.prediction}
+                  </span>
+                </div>
+                <div className="lv-verif-box__item">
+                  <span className="lv-verif-box__lbl">STATUS</span>
+                  <span className={`lv-verif-box__status ${isMatch ? 'correct' : 'wrong'}`}>
+                    {isMatch ? '✓ CORRECT' : '✕ MISCLASSIFIED'}
+                  </span>
+                </div>
+                <div className="lv-verif-box__item">
+                  <span className="lv-verif-box__lbl">CONFIDENCE</span>
+                  <span className="lv-verif-box__val">
+                    {confPct}%
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -117,6 +134,10 @@ export default function ResultCard({
                 <div className="lv-verif__item">
                   <span className="lv-verif__lbl">MODEL PREDICTION</span>
                   <span className="lv-verif__val">{result.prediction}</span>
+                </div>
+                <div className="lv-verif__item">
+                  <span className="lv-verif__lbl">CONFIDENCE</span>
+                  <span className="lv-verif__val">{confPct}%</span>
                 </div>
                 <div className="lv-verif__item">
                   <span className="lv-verif__lbl">STATUS</span>
@@ -148,6 +169,23 @@ export default function ResultCard({
 
           {/* Footer actions */}
           <div className="lv-pred__footer">
+            {isVerifiedSample && onNextSample ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={onNextSample}
+                id="next-sample-btn"
+                title="Evaluate next verified test sample from this category"
+                aria-label="Evaluate next verified sample"
+              >
+                <span>Next Sample</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+            ) : <span />}
+
             <button
               type="button"
               className="btn btn-ghost btn-sm"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL, DISEASE_INFO } from '../config';
 
 const TABS = [
@@ -13,12 +13,14 @@ export default function TestGallery({
   onSelectSample,
   selectedFilename,
   isAnalyzing,
+  onSamplesLoaded,
 }) {
   const [classesData, setClassesData] = useState([]);
   const [activeTab, setActiveTab] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loadingSample, setLoadingSample] = useState(null);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -29,8 +31,12 @@ export default function TestGallery({
         if (!res.ok) throw new Error('Failed to retrieve test samples from server.');
         const data = await res.json();
         if (mounted) {
-          setClassesData(data.classes || []);
+          const list = data.classes || [];
+          setClassesData(list);
           setError(null);
+          if (onSamplesLoaded) {
+            onSamplesLoaded(list);
+          }
         }
       } catch (err) {
         if (mounted) setError(err.message || 'Could not connect to sample service.');
@@ -40,14 +46,14 @@ export default function TestGallery({
     };
     fetchSamples();
     return () => { mounted = false; };
-  }, []);
+  }, [onSamplesLoaded]);
 
   // Compute flattened list of items based on activeTab
   const getDisplayItems = () => {
     const items = [];
     classesData.forEach((clsObj) => {
       if (activeTab === 'ALL' || activeTab === clsObj.name) {
-        clsObj.samples.forEach((filename) => {
+        (clsObj.samples || []).forEach((filename) => {
           items.push({
             className: clsObj.name,
             displayName: DISEASE_INFO[clsObj.name]?.displayName || clsObj.name,
@@ -60,7 +66,13 @@ export default function TestGallery({
     return items;
   };
 
-  const handleChooseSample = async (item) => {
+  const handleScroll = (offset) => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  };
+
+  const handleChooseSample = async (item, autoAnalyze = false) => {
     if (isAnalyzing || loadingSample) return;
     try {
       setLoadingSample(item.filename);
@@ -70,7 +82,7 @@ export default function TestGallery({
       const ext = item.filename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
       const file = new File([blob], item.filename, { type: ext });
 
-      onSelectSample(file, 'VERIFIED TEST SAMPLE', item.className);
+      onSelectSample(file, 'VERIFIED TEST SAMPLE', item.className, autoAnalyze);
 
       // Smooth scroll to Image Lab
       const labEl = document.getElementById('image-lab');
@@ -88,60 +100,93 @@ export default function TestGallery({
     const items = getDisplayItems();
     if (items.length === 0) return;
     const randomItem = items[Math.floor(Math.random() * items.length)];
-    handleChooseSample(randomItem);
+    handleChooseSample(randomItem, false);
   };
 
   const displayItems = getDisplayItems();
   const totalCount = classesData.reduce((acc, c) => acc + (c.samples?.length || 0), 0);
 
   return (
-    <section className="lv-gallery" id="test-gallery" aria-label="Verified test samples gallery">
+    <section className="lv-gallery" id="test-gallery" aria-label="Verified test samples console">
       <div className="lv-gallery__head">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h2 className="lv-gallery__title">VERIFIED TEST SAMPLES</h2>
-            <p className="lv-gallery__sub">
-              Representative held-out evaluation samples from local dataset (data/processed/test/). Select any sample to run live inference.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={handleRandomSample}
-            disabled={isAnalyzing || loading || displayItems.length === 0}
-            title="Pick a random sample from current filter"
-            aria-label="Pick random verified sample"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="16 3 21 3 21 8" />
-              <line x1="4" y1="20" x2="21" y2="3" />
-              <polyline points="21 16 21 21 16 21" />
-              <line x1="15" y1="15" x2="21" y2="21" />
-              <line x1="4" y1="4" x2="9" y2="9" />
-            </svg>
-            <span>Random Sample</span>
-          </button>
+        <div className="lv-gallery__eyebrow">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          VERIFIED TEST CONSOLE
         </div>
+        <h2 className="lv-gallery__title">VERIFIED HELD-OUT TEST SAMPLES</h2>
+        <p className="lv-gallery__sub">
+          Directly sourced from local test dataset (<code>data/processed/test/</code>). Each image has an authenticated ground-truth disease class. Select or run real-time inference on any test specimen.
+        </p>
 
-        {/* Tab Filters */}
-        <div className="lv-gallery__tabs" role="tablist" aria-label="Sample disease filters">
-          {TABS.map((tab) => {
-            const count = tab.id === 'ALL'
-              ? totalCount
-              : (classesData.find((c) => c.name === tab.id)?.samples?.length || 0);
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                className={`lv-gallery__tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label} {count > 0 ? `(${count})` : ''}
-              </button>
-            );
-          })}
+        {/* Controls row: Tabs on left, Navigation & Random on right */}
+        <div className="lv-gallery__controls-row">
+          <div className="lv-gallery__tabs" role="tablist" aria-label="Sample disease filters">
+            {TABS.map((tab) => {
+              const count = tab.id === 'ALL'
+                ? totalCount
+                : (classesData.find((c) => c.name === tab.id)?.samples?.length || 0);
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={`lv-gallery__tab ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label} {count > 0 ? `(${count})` : ''}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="lv-gallery__nav-actions">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleRandomSample}
+              disabled={isAnalyzing || loading || displayItems.length === 0}
+              title="Pick a random sample from current filter"
+              aria-label="Pick random verified sample"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="16 3 21 3 21 8" />
+                <line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21 16 21 21 16 21" />
+                <line x1="15" y1="15" x2="21" y2="21" />
+                <line x1="4" y1="4" x2="9" y2="9" />
+              </svg>
+              <span>Random Sample</span>
+            </button>
+
+            <button
+              type="button"
+              className="lv-gallery__arrow-btn"
+              onClick={() => handleScroll(-460)}
+              disabled={loading || displayItems.length === 0}
+              aria-label="Scroll left in sample gallery"
+              title="Scroll left"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              className="lv-gallery__arrow-btn"
+              onClick={() => handleScroll(460)}
+              disabled={loading || displayItems.length === 0}
+              aria-label="Scroll right in sample gallery"
+              title="Scroll right"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -149,7 +194,7 @@ export default function TestGallery({
         {loading ? (
           <div className="lv-gallery__loading">Loading verified samples from dataset…</div>
         ) : error ? (
-          <div className="lv-error" role="alert">
+          <div className="lv-error" style={{ margin: 20 }} role="alert">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
@@ -158,38 +203,83 @@ export default function TestGallery({
             <span>{error}</span>
           </div>
         ) : (
-          <div className="lv-gallery__grid" role="list" aria-label="Verified test samples list">
+          <div
+            ref={scrollContainerRef}
+            className="lv-gallery__track"
+            role="list"
+            aria-label="Verified test samples interactive carousel"
+          >
             {displayItems.map((item) => {
               const isSelected = selectedFilename === item.filename;
               const isCurrentLoading = loadingSample === item.filename;
               return (
                 <div
                   key={`${item.className}-${item.filename}`}
-                  className={`lv-thumb ${isSelected ? 'selected' : ''}`}
+                  className={`lv-sample-card ${isSelected ? 'is-selected' : ''}`}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Select ${item.displayName} sample ${item.filename}`}
-                  onClick={() => handleChooseSample(item)}
+                  aria-label={`Sample ${item.displayName} file ${item.filename}`}
+                  onClick={() => handleChooseSample(item, false)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      handleChooseSample(item);
+                      handleChooseSample(item, false);
                     }
                   }}
                 >
-                  <div className="lv-thumb__img-wrap">
+                  <div className="lv-sample-card__img-box">
                     <img
-                      className="lv-thumb__img"
+                      className="lv-sample-card__img"
                       src={item.url}
                       alt={`${item.displayName} test sample`}
                       loading="lazy"
                     />
+                    <span className="lv-sample-card__badge-top">TEST SAMPLE</span>
+                    {isSelected && (
+                      <span className="lv-sample-card__selected-pill">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" />
+                        </svg>
+                        SELECTED
+                      </span>
+                    )}
                   </div>
-                  <div className="lv-thumb__meta">
-                    <span className="lv-thumb__cls">{item.displayName}</span>
-                    <span className="lv-thumb__tag">
-                      {isCurrentLoading ? 'LOADING…' : 'TEST SAMPLE'}
-                    </span>
+
+                  <div className="lv-sample-card__content">
+                    <div className="lv-sample-card__title-row">
+                      <span className="lv-sample-card__name">{item.displayName}</span>
+                      <span className="lv-sample-card__gt">
+                        GT: <strong>{item.className}</strong>
+                      </span>
+                      <span className="lv-sample-card__filename">{item.filename}</span>
+                    </div>
+
+                    <div className="lv-sample-card__actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="lv-card-btn lv-card-btn--use"
+                        onClick={() => handleChooseSample(item, false)}
+                        disabled={isAnalyzing || isCurrentLoading}
+                        title="Load this sample into Image Lab"
+                        aria-label={`Use ${item.displayName} sample`}
+                      >
+                        {isCurrentLoading ? 'Loading…' : 'Use Sample'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="lv-card-btn lv-card-btn--test"
+                        onClick={() => handleChooseSample(item, true)}
+                        disabled={isAnalyzing || isCurrentLoading}
+                        title="Load and immediately analyze this sample"
+                        aria-label={`Use and analyze ${item.displayName} sample`}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        <span>Analyze</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
